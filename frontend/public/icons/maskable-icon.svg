@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#020817"/>
+  <defs>
+    <linearGradient id="fluewilaGradient" x1="70" y1="70" x2="442" y2="442" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a3ffc"/>
+      <stop offset="0.42" stop-color="#1f6fff"/>
+      <stop offset="1" stop-color="#00c8ff"/>
+    </linearGradient>
+  </defs>
+  <path d="M104 160C104 94 168 72 232 94C296 116 336 159 350 224C366 190 398 176 429 193C452 205 466 230 466 260V314C466 352 436 379 397 371C333 359 287 328 256 281C219 326 168 359 111 372C75 380 46 354 46 318V222C46 184 68 161 104 160Z" fill="url(#fluewilaGradient)" opacity="0.95"/>
+  <path d="M125 383C138 333 188 318 239 344C279 364 314 397 351 436C383 394 432 377 467 406C484 420 487 445 474 464C454 493 399 494 348 461C301 431 269 400 232 372C198 407 159 438 108 461C69 478 33 461 34 426C35 393 75 376 125 383Z" fill="url(#fluewilaGradient)" opacity="0.86"/>
+  <circle cx="324" cy="454" r="42" fill="url(#fluewilaGradient)"/>
+</svg>

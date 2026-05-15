@@ -1,0 +1,18 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="96" fill="#020817"/>
+  <defs>
+    <linearGradient id="fluewilaGradient" x1="82" y1="74" x2="430" y2="438" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a3ffc"/>
+      <stop offset="0.42" stop-color="#1f6fff"/>
+      <stop offset="1" stop-color="#00c8ff"/>
+    </linearGradient>
+    <filter id="glow" x="40" y="40" width="432" height="432" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#00c8ff" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <g filter="url(#glow)">
+    <path d="M111 162C111 103 167 86 226 105C289 126 329 164 341 221C356 192 383 181 410 195C430 206 441 227 441 252V303C441 337 415 360 381 354C324 344 282 316 255 274C222 314 176 343 124 355C92 362 67 339 67 307V224C67 190 84 168 111 162Z" fill="url(#fluewilaGradient)" opacity="0.94"/>
+    <path d="M131 378C141 334 184 321 230 343C268 361 304 392 340 429C369 390 413 374 445 401C459 413 462 435 452 451C436 477 388 478 340 448C295 420 265 391 232 365C202 398 166 428 120 448C86 463 54 448 55 418C56 389 89 373 131 378Z" fill="url(#fluewilaGradient)" opacity="0.84"/>
+    <circle cx="325" cy="450" r="38" fill="url(#fluewilaGradient)"/>
+  </g>
+</svg>

@@ -9,6 +9,7 @@ const productsRoutes = require("./routes/products.routes");
 const ordersRoutes = require("./routes/orders.routes");
 const jobsRoutes = require("./routes/jobs.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
+const invoicePdfsRoutes = require("./routes/invoicePdfs.routes");
 
 const errorHandler = require("./middlewares/errorHandler");
 
@@ -29,6 +30,8 @@ app.use("/products", productsRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/jobs", jobsRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/shipping-label-pdfs", invoicePdfsRoutes);
+app.use("/invoice-pdfs", invoicePdfsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

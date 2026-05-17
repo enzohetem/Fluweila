@@ -79,6 +79,12 @@ web_modules/
 .env.production.local
 .env.local
 
+# Local application data and sensitive uploads
+backend/uploads/
+backend/fila3d.sqlite
+backend/*.sqlite
+backend/*.sqlite-*
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

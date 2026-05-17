@@ -1,4 +1,4 @@
-export default function StatusMessage({ loading, error, empty }) {
+export default function StatusMessage({ loading, error, empty, message }) {
   if (loading) {
     return <div className="state-line">Carregando...</div>;
   }
@@ -8,7 +8,7 @@ export default function StatusMessage({ loading, error, empty }) {
   }
 
   if (empty) {
-    return <div className="state-line">Nenhum registro encontrado.</div>;
+    return <div className="state-line">{message || "Nenhum registro encontrado."}</div>;
   }
 
   return null;

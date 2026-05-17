@@ -79,6 +79,15 @@ db.exec(`
 
     FOREIGN KEY (filament_id) REFERENCES filaments(id)
   );
+
+  CREATE TABLE IF NOT EXISTS invoice_pdfs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    original_name TEXT NOT NULL,
+    stored_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 const printJobColumns = db.prepare("PRAGMA table_info(print_jobs)").all();

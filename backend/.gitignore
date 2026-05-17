@@ -1,3 +1,6 @@
 node_modules
 .env
 fila3d.sqlite
+*.sqlite
+*.sqlite-*
+uploads/

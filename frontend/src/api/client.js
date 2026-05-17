@@ -20,7 +20,29 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function uploadPdf(path, file) {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-File-Name": encodeURIComponent(file.name),
+    },
+    body: file,
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!response.ok) {
+    const message = data?.error || "Nao foi possivel enviar o PDF.";
+    throw new Error(message);
+  }
+
+  return data;
+}
+
 export const api = {
+  fileUrl: (path) => `${API_URL}${path}`,
   get: (path) => request(path),
   post: (path, body) => request(path, {
     method: "POST",
@@ -37,4 +59,5 @@ export const api = {
   delete: (path) => request(path, {
     method: "DELETE",
   }),
+  uploadPdf,
 };

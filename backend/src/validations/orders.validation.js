@@ -51,6 +51,24 @@ function validateUpdateOrderStatus(data) {
   return errors;
 }
 
+function validateUpdateOrder(data) {
+  const errors = [];
+
+  if (!data.customer_name || data.customer_name.trim() === "") {
+    errors.push("O nome do cliente e obrigatorio.");
+  }
+
+  if (!data.delivery_date) {
+    errors.push("A data de entrega e obrigatoria.");
+  }
+
+  if (data.delivery_date && !isValidDateOnly(data.delivery_date)) {
+    errors.push("A data de entrega deve estar no formato YYYY-MM-DD.");
+  }
+
+  return errors;
+}
+
 function isValidDateOnly(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -62,5 +80,6 @@ function isValidDateOnly(value) {
 
 module.exports = {
   validateCreateOrder,
+  validateUpdateOrder,
   validateUpdateOrderStatus,
 };

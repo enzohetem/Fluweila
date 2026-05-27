@@ -1,4 +1,4 @@
-import { ArrowLeft, ListChecks } from "lucide-react";
+import { ArrowLeft, ListChecks, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
@@ -62,10 +62,20 @@ export default function OrderDetailsPage() {
       <PageHeader
         title={`Pedido #${id}`}
         actions={
-          <button className="secondary-button" type="button" onClick={() => navigate(backTo)}>
-            <ArrowLeft size={18} />
-            Voltar
-          </button>
+          <>
+            <button className="secondary-button" type="button" onClick={() => navigate(backTo)}>
+              <ArrowLeft size={18} />
+              Voltar
+            </button>
+            <Link
+              className="primary-button"
+              to={`/orders/${id}/edit`}
+              state={{ from: location.pathname }}
+            >
+              <Pencil size={18} />
+              Editar
+            </Link>
+          </>
         }
       />
 

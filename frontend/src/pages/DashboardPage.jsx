@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
@@ -60,6 +60,7 @@ export default function DashboardPage() {
             <div className="panel-header">
               <h2>Pedidos da semana</h2>
             </div>
+            <LowStockWarnings items={summary.low_stock_items || []} />
             <WeeklyOrdersChart data={summary.weekly_orders || []} />
           </section>
 
@@ -117,10 +118,37 @@ export default function DashboardPage() {
   );
 }
 
+function LowStockWarnings({ items }) {
+  const navigate = useNavigate();
+
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="dashboard-stock-alerts" role="status" aria-live="polite">
+      {items.map((item) => (
+        <button
+          className="dashboard-stock-alert"
+          key={item.id}
+          type="button"
+          onClick={() => navigate(`/filaments/${item.id}/edit`)}
+        >
+          <AlertTriangle size={18} />
+          <span>
+            Baixo estoque do filamento {filamentAlertLabel(item)}:{" "}
+            <strong>{Number(item.stock_grams || 0)}g</strong>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function WeeklyOrdersChart({ data }) {
   const width = 1000;
-  const height = 300;
-  const padding = { top: 20, right: 24, bottom: 42, left: 42 };
+  const height = 330;
+  const padding = { top: 20, right: 118, bottom: 60, left: 118 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const maxTotal = Math.max(1, ...data.map((item) => item.total));
@@ -179,8 +207,11 @@ function WeeklyOrdersChart({ data }) {
         {points.map((point) => (
           <g key={point.date}>
             <circle className="weekly-orders-dot" cx={point.x} cy={point.y} r="4" />
-            <text className="weekly-orders-x-label" x={point.x} y={height - 12}>
-              {formatChartLabel(point)}
+            <text className="weekly-orders-x-label" x={point.x} y={height - 24}>
+              <tspan x={point.x}>{formatChartLabel(point).weekday}</tspan>
+              <tspan x={point.x} dy="15">
+                {formatChartLabel(point).date}
+              </tspan>
             </text>
           </g>
         ))}
@@ -198,5 +229,15 @@ function formatChartLabel(item) {
     month: "short",
   });
 
-  return `${weekday}, ${formattedDate.replace(".", "")}`;
+  return {
+    weekday,
+    date: formattedDate.replace(".", ""),
+  };
+}
+
+function filamentAlertLabel(item) {
+  return [item.name, item.brand, item.material, item.color]
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .join(" ");
 }

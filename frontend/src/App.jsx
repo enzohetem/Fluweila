@@ -24,6 +24,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/orders/new" element={<OrderFormPage />} />
+        <Route path="/orders/:id/edit" element={<OrderFormPage />} />
         <Route path="/orders/:id" element={<OrderDetailsPage />} />
         <Route path="/packing" element={<PackingPage />} />
         <Route path="/jobs" element={<JobsPage />} />

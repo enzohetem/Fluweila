@@ -74,16 +74,17 @@ web_modules/
 
 # dotenv environment variable files
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Local application data and sensitive uploads
-backend/uploads/
-backend/fila3d.sqlite
-backend/*.sqlite
-backend/*.sqlite-*
+uploads/
+**/uploads/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

@@ -110,6 +110,9 @@ const hasFailureReason = printJobColumns.some(
 const hasProgress = printJobColumns.some(
   (column) => column.name === "progress",
 );
+const hasStockReservedAt = printJobColumns.some(
+  (column) => column.name === "stock_reserved_at",
+);
 
 if (!hasProductId) {
   db.exec(`
@@ -157,6 +160,13 @@ if (!hasProgress) {
   db.exec(`
     ALTER TABLE print_jobs
     ADD COLUMN progress INTEGER NOT NULL DEFAULT 0;
+  `);
+}
+
+if (!hasStockReservedAt) {
+  db.exec(`
+    ALTER TABLE print_jobs
+    ADD COLUMN stock_reserved_at DATETIME;
   `);
 }
 

@@ -3,10 +3,13 @@ const { getPagination, buildPaginationMeta } = require("../utils/pagination");
 const { calculateJobPriority } = require("../utils/jobPriority");
 const {
   validateCreateOrder,
+  validateUpdateOrder,
   validateUpdateOrderStatus,
 } = require("../validations/orders.validation");
 const {
   validateFilamentStockAvailability,
+  reserveFilamentStock,
+  releaseFilamentStock,
 } = require("../services/filamentStock.service");
 
 function listOrders(req, res) {
@@ -80,23 +83,25 @@ function createOrder(req, res) {
     return res.status(products.error.status).json({ error: products.error.message });
   }
 
-  const stockError = validateFilamentStockAvailability(
-    items.map((item) => {
-      const product = products.byId.get(Number(item.product_id));
+  const filamentRequirements = items.map((item) => {
+    const product = products.byId.get(Number(item.product_id));
 
-      return {
-        filament_id: product.filament_id,
-        estimated_filament_grams: product.estimated_filament_grams,
-        quantity: item.quantity,
-      };
-    }),
-  );
+    return {
+      filament_id: product.filament_id,
+      estimated_filament_grams: product.estimated_filament_grams,
+      quantity: item.quantity,
+    };
+  });
+
+  const stockError = validateFilamentStockAvailability(filamentRequirements);
 
   if (stockError) {
     return res.status(stockError.status).json({ error: stockError.message });
   }
 
   const transaction = db.transaction(() => {
+    reserveFilamentStock(filamentRequirements);
+
     const orderResult = db
       .prepare(
         `
@@ -161,8 +166,9 @@ function createOrder(req, res) {
             product_id,
             order_id,
             order_item_id,
-            unit_index
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'waiting_printer', ?, ?, ?, ?, ?)
+            unit_index,
+            stock_reserved_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'waiting_printer', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `,
         ).run(
           `Pedido #${orderId} - ${product.name} ${unitIndex}/${quantity}`,
@@ -190,6 +196,61 @@ function createOrder(req, res) {
     ...findOrderWithSummary(orderId),
     items: findOrderItems(orderId),
     jobs: findOrderJobs(orderId),
+  });
+}
+
+function updateOrder(req, res) {
+  const errors = validateUpdateOrder(req.body);
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      error: "Dados invalidos.",
+      details: errors,
+    });
+  }
+
+  const order = findOrder(req.params.id);
+
+  if (!order) {
+    return res.status(404).json({ error: "Pedido nao encontrado." });
+  }
+
+  const customerName = req.body.customer_name.trim();
+  const deliveryDate = req.body.delivery_date;
+  const notes = req.body.notes || null;
+  const priority = calculateJobPriority(deliveryDate);
+
+  const transaction = db.transaction(() => {
+    db.prepare(
+      `
+      UPDATE orders
+      SET customer_name = ?,
+          delivery_date = ?,
+          notes = ?,
+          priority = ?,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `,
+    ).run(customerName, deliveryDate, notes, priority, req.params.id);
+
+    db.prepare(
+      `
+      UPDATE print_jobs
+      SET customer_name = ?,
+          delivery_date = ?,
+          description = ?,
+          priority = ?
+      WHERE order_id = ?
+    `,
+    ).run(customerName, deliveryDate, notes, priority, req.params.id);
+  });
+
+  transaction();
+
+  res.json({
+    ...findOrderWithSummary(req.params.id),
+    items: findOrderItems(req.params.id),
+    jobs: findOrderJobs(req.params.id),
   });
 }
 
@@ -275,6 +336,8 @@ function deleteOrder(req, res) {
   }
 
   const transaction = db.transaction(() => {
+    releaseFilamentStock(getReturnableJobFilamentRequirements(req.params.id));
+
     db.prepare("DELETE FROM print_jobs WHERE order_id = ?").run(req.params.id);
     db.prepare("DELETE FROM order_items WHERE order_id = ?").run(req.params.id);
     db.prepare("DELETE FROM orders WHERE id = ?").run(req.params.id);
@@ -283,6 +346,20 @@ function deleteOrder(req, res) {
   transaction();
 
   res.json({ message: "Pedido removido com sucesso." });
+}
+
+function getReturnableJobFilamentRequirements(orderId) {
+  return db
+    .prepare(
+      `
+      SELECT filament_id, estimated_filament_grams
+      FROM print_jobs
+      WHERE order_id = ?
+        AND status != 'printed'
+        AND stock_reserved_at IS NOT NULL
+    `,
+    )
+    .all(orderId);
 }
 
 function buildOrderFilters(query) {
@@ -505,6 +582,7 @@ module.exports = {
   listOrders,
   getOrderById,
   createOrder,
+  updateOrder,
   updateOrderStatus,
   deleteOrder,
   syncOrderStatuses,

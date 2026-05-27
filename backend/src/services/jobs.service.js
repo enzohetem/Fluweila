@@ -1,5 +1,9 @@
 const db = require("../database/db");
 const { FINAL_JOB_STATUSES } = require("../validations/constants");
+const {
+  validateFilamentStockAvailability,
+  reserveFilamentStock,
+} = require("./filamentStock.service");
 
 function httpError(statusCode, message, extra = {}) {
   const error = new Error(message);
@@ -126,18 +130,15 @@ function completeJob(job, id) {
     throw httpError(400, "Este trabalho nao possui filamento vinculado.");
   }
 
-  const filament = db.prepare("SELECT * FROM filaments WHERE id = ?").get(job.filament_id);
+  const filament = db
+    .prepare("SELECT id FROM filaments WHERE id = ?")
+    .get(job.filament_id);
 
   if (!filament) {
     throw httpError(404, "Filamento vinculado nao foi encontrado.");
   }
 
   const usedGrams = job.estimated_filament_grams || 0;
-  const newStock = filament.stock_grams - usedGrams;
-
-  if (newStock < 0) {
-    throw httpError(400, "Estoque insuficiente para concluir este trabalho.");
-  }
 
   const transaction = db.transaction(() => {
     db.prepare(
@@ -152,20 +153,14 @@ function completeJob(job, id) {
     ).run(id);
 
     releasePrinterIfJobWasPrinting(job);
-
-    db.prepare("UPDATE filaments SET stock_grams = ? WHERE id = ?").run(
-      newStock,
-      job.filament_id,
-    );
   });
 
   transaction();
   syncOrderAfterJob(job.order_id);
 
   return {
-    message: "Impressao concluida. Impressora liberada e estoque atualizado.",
+    message: "Impressao concluida. Impressora liberada.",
     filament_used_grams: usedGrams,
-    remaining_stock_grams: newStock,
   };
 }
 
@@ -188,7 +183,29 @@ function failJob(job, id) {
 }
 
 function reprintJob(job, id) {
+  if (job.status === "printed") {
+    const stockError = validateFilamentStockAvailability([
+      {
+        filament_id: job.filament_id,
+        estimated_filament_grams: job.estimated_filament_grams,
+      },
+    ]);
+
+    if (stockError) {
+      throw httpError(stockError.status, stockError.message);
+    }
+  }
+
   const transaction = db.transaction(() => {
+    if (job.status === "printed") {
+      reserveFilamentStock([
+        {
+          filament_id: job.filament_id,
+          estimated_filament_grams: job.estimated_filament_grams,
+        },
+      ]);
+    }
+
     db.prepare(
       `
       UPDATE print_jobs
@@ -196,7 +213,8 @@ function reprintJob(job, id) {
         status = 'reprint',
         progress = 0,
         started_at = NULL,
-        finished_at = NULL
+        finished_at = NULL,
+        stock_reserved_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `,
     ).run(id);

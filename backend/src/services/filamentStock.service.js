@@ -1,9 +1,8 @@
 const db = require("../database/db");
 
-const RESERVED_JOB_STATUSES = ["waiting_printer", "allocated", "printing", "reprint"];
-
 function validateFilamentStockAvailability(requirements, options = {}) {
   const totalsByFilament = new Map();
+  const creditsByFilament = aggregateRequirements(options.creditRequirements || []);
 
   requirements.forEach((requirement) => {
     const filamentId = toNullableNumber(requirement.filament_id);
@@ -50,8 +49,8 @@ function validateFilamentStockAvailability(requirements, options = {}) {
       };
     }
 
-    const reservedGrams = getReservedFilamentGrams(filamentId, options.excludeJobId);
-    const availableGrams = Number(filament.stock_grams || 0) - reservedGrams;
+    const availableGrams =
+      Number(filament.stock_grams || 0) + (creditsByFilament.get(filamentId) || 0);
 
     if (requiredGrams > availableGrams) {
       return {
@@ -67,27 +66,46 @@ function validateFilamentStockAvailability(requirements, options = {}) {
   return null;
 }
 
-function getReservedFilamentGrams(filamentId, excludeJobId) {
-  const params = [filamentId, ...RESERVED_JOB_STATUSES];
-  const excludeClause = excludeJobId ? "AND id != ?" : "";
+function reserveFilamentStock(requirements) {
+  adjustFilamentStock(aggregateRequirements(requirements), -1);
+}
 
-  if (excludeJobId) {
-    params.push(excludeJobId);
-  }
+function releaseFilamentStock(requirements) {
+  adjustFilamentStock(aggregateRequirements(requirements), 1);
+}
 
-  const result = db
-    .prepare(
+function aggregateRequirements(requirements) {
+  const totalsByFilament = new Map();
+
+  requirements.forEach((requirement) => {
+    const filamentId = toNullableNumber(requirement.filament_id);
+    const grams = Number(requirement.estimated_filament_grams || 0);
+    const quantity = Number(requirement.quantity || 1);
+    const totalGrams = grams * quantity;
+
+    if (!filamentId || totalGrams <= 0) {
+      return;
+    }
+
+    totalsByFilament.set(
+      filamentId,
+      (totalsByFilament.get(filamentId) || 0) + totalGrams,
+    );
+  });
+
+  return totalsByFilament;
+}
+
+function adjustFilamentStock(totalsByFilament, direction) {
+  for (const [filamentId, grams] of totalsByFilament.entries()) {
+    db.prepare(
       `
-      SELECT COALESCE(SUM(COALESCE(estimated_filament_grams, 0)), 0) AS total
-      FROM print_jobs
-      WHERE filament_id = ?
-        AND status IN (${RESERVED_JOB_STATUSES.map(() => "?").join(", ")})
-        ${excludeClause}
+      UPDATE filaments
+      SET stock_grams = stock_grams + ?
+      WHERE id = ?
     `,
-    )
-    .get(...params);
-
-  return Number(result.total || 0);
+    ).run(grams * direction, filamentId);
+  }
 }
 
 function toNullableNumber(value) {
@@ -100,4 +118,6 @@ function toNullableNumber(value) {
 
 module.exports = {
   validateFilamentStockAvailability,
+  reserveFilamentStock,
+  releaseFilamentStock,
 };

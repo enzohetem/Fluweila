@@ -1,4 +1,4 @@
-import { Eye, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../api/client.js";
@@ -195,6 +195,15 @@ export default function OrdersPage() {
                       >
                         <Eye size={16} />
                         Detalhes
+                      </Link>
+                      <Link
+                        className="secondary-button compact-button"
+                        to={`/orders/${order.id}/edit`}
+                        state={{ from: location.pathname }}
+                        title="Editar pedido"
+                      >
+                        <Pencil size={16} />
+                        Editar
                       </Link>
                       <button
                         className="icon-button danger"

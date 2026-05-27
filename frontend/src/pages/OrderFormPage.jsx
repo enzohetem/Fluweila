@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronDown, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import PageHeader from "../components/PageHeader.jsx";
 import StatusMessage from "../components/StatusMessage.jsx";
@@ -13,6 +13,7 @@ const emptyItemDraft = {
 };
 
 export default function OrderFormPage() {
+  const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -28,17 +29,41 @@ export default function OrderFormPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const backTo = useMemo(() => location.state?.from || "/orders", [location.state]);
+  const editing = Boolean(id);
+  const backTo = useMemo(
+    () => location.state?.from || (editing ? `/orders/${id}` : "/orders"),
+    [editing, id, location.state],
+  );
 
   useEffect(() => {
-    loadProducts();
-  }, []);
+    loadData();
+  }, [id]);
 
-  async function loadProducts() {
+  async function loadData() {
     try {
       setLoading(true);
       setError("");
-      setProducts(await api.get("/products"));
+      const [productList, order] = await Promise.all([
+        api.get("/products"),
+        editing ? api.get(`/orders/${id}`) : Promise.resolve(null),
+      ]);
+
+      setProducts(productList);
+
+      if (order) {
+        setForm({
+          customer_name: order.customer_name || "",
+          delivery_date: order.delivery_date || "",
+          notes: order.notes || "",
+          items: order.items.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            product_name: item.product_name,
+            product_sku: item.product_sku,
+            variation: filamentLabel(item),
+          })),
+        });
+      }
     } catch (err) {
       setError(err.message);
       toast.error(err.message);
@@ -75,6 +100,7 @@ export default function OrderFormPage() {
     }));
 
     setItemDraft(emptyItemDraft);
+    setProductSearch("");
     setProductPickerOpen(false);
   }
 
@@ -88,7 +114,7 @@ export default function OrderFormPage() {
   async function saveOrder(event) {
     event.preventDefault();
 
-    if (form.items.length === 0) {
+    if (!editing && form.items.length === 0) {
       toast.error("Adicione ao menos um produto ao pedido.");
       return;
     }
@@ -96,9 +122,15 @@ export default function OrderFormPage() {
     try {
       setSaving(true);
       setError("");
-      const order = await api.post("/orders", normalizePayload(form));
-      toast.success("Pedido criado e fila gerada.");
-      navigate(`/orders/${order.id}`);
+      if (editing) {
+        await api.put(`/orders/${id}`, normalizeOrderInfoPayload(form));
+        toast.success("Pedido atualizado.");
+        navigate(`/orders/${id}`);
+      } else {
+        const order = await api.post("/orders", normalizeCreatePayload(form));
+        toast.success("Pedido criado e fila gerada.");
+        navigate(`/orders/${order.id}`);
+      }
     } catch (err) {
       setError(err.message);
       toast.error(err.message);
@@ -110,7 +142,7 @@ export default function OrderFormPage() {
   return (
     <section className="page detail-page">
       <PageHeader
-        title="Novo pedido"
+        title={editing ? `Editar pedido #${id}` : "Novo pedido"}
         actions={
           <button className="secondary-button" type="button" onClick={() => navigate(backTo)}>
             <ArrowLeft size={18} />
@@ -149,6 +181,7 @@ export default function OrderFormPage() {
               </label>
             </div>
 
+            {!editing ? (
             <section className="order-item-builder">
               <div className="panel-header">
                 <h2>Adicionar produto</h2>
@@ -229,6 +262,7 @@ export default function OrderFormPage() {
                 </button>
               </div>
             </section>
+            ) : null}
 
             <section className="order-items-list">
               <div className="panel-header">
@@ -254,15 +288,19 @@ export default function OrderFormPage() {
                         <td>{item.variation || "-"}</td>
                         <td>{item.quantity}</td>
                         <td>
-                          <button
-                            className="icon-button danger"
-                            type="button"
-                            title="Remover item"
-                            aria-label="Remover item"
-                            onClick={() => removeItem(index)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {!editing ? (
+                            <button
+                              className="icon-button danger"
+                              type="button"
+                              title="Remover item"
+                              aria-label="Remover item"
+                              onClick={() => removeItem(index)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          ) : (
+                            <span className="muted">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -275,7 +313,7 @@ export default function OrderFormPage() {
             <div className="form-actions job-editor-actions order-form-actions">
               <button className="primary-button" type="submit" disabled={saving}>
                 <Save size={18} />
-                {saving ? "Salvando..." : "Criar pedido"}
+                {saving ? "Salvando..." : editing ? "Salvar alteracoes" : "Criar pedido"}
               </button>
             </div>
           </form>
@@ -285,7 +323,7 @@ export default function OrderFormPage() {
   );
 }
 
-function normalizePayload(form) {
+function normalizeCreatePayload(form) {
   return {
     customer_name: form.customer_name,
     delivery_date: form.delivery_date,
@@ -294,6 +332,20 @@ function normalizePayload(form) {
       quantity: Number(item.quantity),
     })),
   };
+}
+
+function normalizeOrderInfoPayload(form) {
+  return {
+    customer_name: form.customer_name,
+    delivery_date: form.delivery_date,
+    notes: form.notes || null,
+  };
+}
+
+function filamentLabel(item) {
+  return [item.filament_brand, item.filament_material, item.filament_color]
+    .filter((value) => value && String(value).trim() !== "")
+    .join(" ");
 }
 
 function productLabel(product) {

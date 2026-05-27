@@ -65,7 +65,7 @@ function countFilaments() {
 
   return {
     total: count("filaments"),
-    low_stock: count("filaments", "stock_grams <= 200"),
+    low_stock: count("filaments", "stock_grams < 400"),
     total_stock_grams: totalStock.total,
   };
 }
@@ -93,8 +93,8 @@ function listWeeklyOrders() {
       COUNT(*) AS total
     FROM orders
     WHERE delivery_date IS NOT NULL
-      AND DATE(delivery_date) >= DATE('now', 'localtime', '-6 days')
-      AND DATE(delivery_date) <= DATE('now', 'localtime')
+      AND DATE(delivery_date) >= DATE('now', 'localtime', '-5 days')
+      AND DATE(delivery_date) <= DATE('now', 'localtime', '+1 day')
       AND status != 'cancelled'
     GROUP BY DATE(delivery_date)
   `,
@@ -103,9 +103,9 @@ function listWeeklyOrders() {
   const totalsByDay = new Map(rows.map((row) => [row.day, row.total]));
   const days = [];
 
-  for (let offset = 6; offset >= 0; offset -= 1) {
+  for (let offset = -5; offset <= 1; offset += 1) {
     const date = new Date();
-    date.setDate(date.getDate() - offset);
+    date.setDate(date.getDate() + offset);
     const key = toDateKey(date);
 
     days.push({
@@ -131,7 +131,7 @@ function listLowStockItems() {
       `
     SELECT id, name, color, material, brand, stock_grams
     FROM filaments
-    WHERE stock_grams <= 200
+    WHERE stock_grams < 400
     ORDER BY stock_grams ASC
     LIMIT 5
   `,

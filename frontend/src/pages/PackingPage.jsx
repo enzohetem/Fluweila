@@ -41,13 +41,15 @@ export default function PackingPage() {
       setError("");
 
       const allOrders = await loadPackingCandidates();
-      const nextOrders = allOrders.filter((order) => {
-        if (["ready_to_pack", "printed"].includes(order.status)) {
-          return true;
-        }
+      const nextOrders = allOrders
+        .filter((order) => {
+          if (["ready_to_pack", "printed"].includes(order.status)) {
+            return true;
+          }
 
-        return showPacked && order.status === "packed";
-      });
+          return showPacked && order.status === "packed";
+        })
+        .sort((firstOrder, secondOrder) => Number(firstOrder.id) - Number(secondOrder.id));
 
       setOrders(nextOrders);
       setSelectedOrderId(

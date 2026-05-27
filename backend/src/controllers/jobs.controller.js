@@ -10,6 +10,8 @@ const {
 } = require("../services/jobs.service");
 const {
   validateFilamentStockAvailability,
+  reserveFilamentStock,
+  releaseFilamentStock,
 } = require("../services/filamentStock.service");
 const { getPagination, buildPaginationMeta } = require("../utils/pagination");
 const { calculateJobPriority } = require("../utils/jobPriority");
@@ -183,41 +185,55 @@ function createJob(req, res) {
     });
   }
 
-  const result = db
-    .prepare(
-      `
-    INSERT INTO print_jobs (
-      title,
-      description,
-      customer_name,
-      file_name,
-      delivery_date,
-      estimated_time_minutes,
-      estimated_filament_grams,
-      priority,
-      status,
-      printer_id,
-      filament_id,
-      product_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `,
-    )
-    .run(
-      jobTitle,
-      description || null,
-      customer_name || null,
-      file_name || null,
-      delivery_date,
-      toNullableNumber(estimated_time_minutes),
-      toNullableNumber(estimated_filament_grams),
-      calculateJobPriority(delivery_date),
-      "waiting_printer",
-      toNullableNumber(printer_id),
-      toNullableNumber(filament_id),
-      toNullableNumber(product_id),
-    );
+  const transaction = db.transaction(() => {
+    reserveFilamentStock([
+      {
+        filament_id,
+        estimated_filament_grams,
+      },
+    ]);
 
-  res.status(201).json(findJobWithRelations(result.lastInsertRowid));
+    const result = db
+      .prepare(
+        `
+      INSERT INTO print_jobs (
+        title,
+        description,
+        customer_name,
+        file_name,
+        delivery_date,
+        estimated_time_minutes,
+        estimated_filament_grams,
+        priority,
+        status,
+        printer_id,
+        filament_id,
+        product_id,
+        stock_reserved_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `,
+      )
+      .run(
+        jobTitle,
+        description || null,
+        customer_name || null,
+        file_name || null,
+        delivery_date,
+        toNullableNumber(estimated_time_minutes),
+        toNullableNumber(estimated_filament_grams),
+        calculateJobPriority(delivery_date),
+        "waiting_printer",
+        toNullableNumber(printer_id),
+        toNullableNumber(filament_id),
+        toNullableNumber(product_id),
+      );
+
+    return result.lastInsertRowid;
+  });
+
+  const jobId = transaction();
+
+  res.status(201).json(findJobWithRelations(jobId));
 }
 
 function updateJob(req, res) {
@@ -287,7 +303,16 @@ function updateJob(req, res) {
         estimated_filament_grams,
       },
     ],
-    { excludeJobId: id },
+    {
+      creditRequirements: job.stock_reserved_at
+        ? [
+            {
+              filament_id: job.filament_id,
+              estimated_filament_grams: job.estimated_filament_grams,
+            },
+          ]
+        : [],
+    },
   );
 
   if (stockError) {
@@ -296,37 +321,58 @@ function updateJob(req, res) {
     });
   }
 
-  db.prepare(
-    `
-    UPDATE print_jobs
-    SET
-      title = ?,
-      description = ?,
-      customer_name = ?,
-      file_name = ?,
-      delivery_date = ?,
-      estimated_time_minutes = ?,
-      estimated_filament_grams = ?,
-      priority = ?,
-      printer_id = ?,
-      filament_id = ?,
-      product_id = ?
-    WHERE id = ?
-  `,
-  ).run(
-    jobTitle,
-    description || null,
-    customer_name || null,
-    file_name || null,
-    delivery_date,
-    toNullableNumber(estimated_time_minutes),
-    toNullableNumber(estimated_filament_grams),
-    calculateJobPriority(delivery_date),
-    toNullableNumber(printer_id),
-    toNullableNumber(filament_id),
-    toNullableNumber(product_id),
-    id,
-  );
+  const transaction = db.transaction(() => {
+    if (job.stock_reserved_at) {
+      releaseFilamentStock([
+        {
+          filament_id: job.filament_id,
+          estimated_filament_grams: job.estimated_filament_grams,
+        },
+      ]);
+    }
+
+    reserveFilamentStock([
+      {
+        filament_id,
+        estimated_filament_grams,
+      },
+    ]);
+
+    db.prepare(
+      `
+      UPDATE print_jobs
+      SET
+        title = ?,
+        description = ?,
+        customer_name = ?,
+        file_name = ?,
+        delivery_date = ?,
+        estimated_time_minutes = ?,
+        estimated_filament_grams = ?,
+        priority = ?,
+        printer_id = ?,
+        filament_id = ?,
+        product_id = ?,
+        stock_reserved_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `,
+    ).run(
+      jobTitle,
+      description || null,
+      customer_name || null,
+      file_name || null,
+      delivery_date,
+      toNullableNumber(estimated_time_minutes),
+      toNullableNumber(estimated_filament_grams),
+      calculateJobPriority(delivery_date),
+      toNullableNumber(printer_id),
+      toNullableNumber(filament_id),
+      toNullableNumber(product_id),
+      id,
+    );
+  });
+
+  transaction();
 
   res.json(findJobWithRelations(id));
 }
@@ -371,12 +417,25 @@ function deleteJob(req, res) {
     });
   }
 
-  db.prepare(
-    `
-    DELETE FROM print_jobs
-    WHERE id = ?
-  `,
-  ).run(id);
+  const transaction = db.transaction(() => {
+    if (job.status !== "printed" && job.stock_reserved_at) {
+      releaseFilamentStock([
+        {
+          filament_id: job.filament_id,
+          estimated_filament_grams: job.estimated_filament_grams,
+        },
+      ]);
+    }
+
+    db.prepare(
+      `
+      DELETE FROM print_jobs
+      WHERE id = ?
+    `,
+    ).run(id);
+  });
+
+  transaction();
 
   res.json({
     message: "Trabalho de impressão removido com sucesso.",
